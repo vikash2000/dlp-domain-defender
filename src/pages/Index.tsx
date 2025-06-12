@@ -1,11 +1,159 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Shield, Database, Search, Logs } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { DLPLogStream } from "@/components/DLPLogStream";
+import { SecurityScenarios } from "@/components/SecurityScenarios";
+import { DLPMetrics } from "@/components/DLPMetrics";
+import { LogAnalytics } from "@/components/LogAnalytics";
+import { dlpService } from "@/services/dlpService";
 
 const Index = () => {
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+
+  const { data: dlpStats } = useQuery({
+    queryKey: ['dlp-stats'],
+    queryFn: dlpService.getDLPStats,
+    refetchInterval: 5000,
+  });
+
+  const { data: securityMetrics } = useQuery({
+    queryKey: ['security-metrics'],
+    queryFn: dlpService.getSecurityMetrics,
+    refetchInterval: 10000,
+  });
+
+  useEffect(() => {
+    if (dlpStats?.criticalAlerts) {
+      setAlertCount(dlpStats.criticalAlerts);
+    }
+  }, [dlpStats]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Shield className="h-8 w-8 text-primary" />
+              DLP Analysis Dashboard
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Real-time Data Loss Prevention monitoring and analysis
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Badge variant={isStreaming ? "default" : "secondary"}>
+              {isStreaming ? "Live" : "Paused"}
+            </Badge>
+            <Button
+              onClick={() => setIsStreaming(!isStreaming)}
+              variant={isStreaming ? "destructive" : "default"}
+            >
+              {isStreaming ? "Stop Monitoring" : "Start Monitoring"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Critical Alerts */}
+        {alertCount > 0 && (
+          <Alert variant="destructive">
+            <Shield className="h-4 w-4" />
+            <AlertDescription>
+              {alertCount} critical security alerts detected. Immediate attention required.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Policies</CardTitle>
+              <Database className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dlpStats?.activePolicies || 24}</div>
+              <p className="text-xs text-muted-foreground">+2 from last hour</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Blocked Events</CardTitle>
+              <Shield className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dlpStats?.blockedEvents || 156}</div>
+              <p className="text-xs text-muted-foreground">+12 from last hour</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Risk Score</CardTitle>
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{dlpStats?.riskScore || 7.2}</div>
+              <p className="text-xs text-muted-foreground">Medium risk level</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Log Volume</CardTitle>
+              <Logs className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dlpStats?.logVolume || '2.4K'}</div>
+              <p className="text-xs text-muted-foreground">events/minute</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="logs" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="logs">Real-time Logs</TabsTrigger>
+            <TabsTrigger value="scenarios">Security Scenarios</TabsTrigger>
+            <TabsTrigger value="metrics">DLP Metrics</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="logs" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Live DLP Event Stream</CardTitle>
+                <CardDescription>
+                  Real-time monitoring of data loss prevention events and security incidents
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DLPLogStream isStreaming={isStreaming} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="scenarios" className="space-y-4">
+            <SecurityScenarios />
+          </TabsContent>
+
+          <TabsContent value="metrics" className="space-y-4">
+            <DLPMetrics data={securityMetrics} />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-4">
+            <LogAnalytics />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
