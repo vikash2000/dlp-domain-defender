@@ -7,6 +7,57 @@ import { useState } from "react";
 
 const securityScenarios = [
   {
+    id: 'payroll-financial',
+    title: 'Payroll & Financial Data Protection',
+    description: 'Salary statements, financial records, and payroll data monitoring',
+    framework: 'Custom Policy',
+    severity: 'critical',
+    rules: [
+      'Salary statement file detection (.xlsx, .xls)',
+      'Payroll data pattern matching',
+      'Financial email content analysis',
+      'Cross-department salary data sharing prevention',
+      'External email recipient validation for financial data'
+    ],
+    status: 'active',
+    detections: 23,
+    triggerKeywords: ['salary', 'stipend', 'payroll', 'compensation', 'financial statement']
+  },
+  {
+    id: 'email-dlp',
+    title: 'Email Data Loss Prevention',
+    description: 'Exchange email monitoring and attachment scanning',
+    framework: 'Email Security',
+    severity: 'high',
+    rules: [
+      'Outlook email attachment scanning',
+      'Exchange client monitoring',
+      'Multiple recipient validation',
+      'External domain email alerts',
+      'Email subject line analysis for sensitive keywords'
+    ],
+    status: 'active',
+    detections: 156,
+    triggerKeywords: ['confidential', 'internal', 'private', 'restricted']
+  },
+  {
+    id: 'file-transfer',
+    title: 'File Transfer Monitoring',
+    description: 'All file extension monitoring and data transfer tracking',
+    framework: 'Data Transfer Policy',
+    severity: 'medium',
+    rules: [
+      'Binary file classification',
+      'Excel/spreadsheet content inspection',
+      'File size threshold monitoring (>30KB)',
+      'Source and destination tracking',
+      'Process-based file access logging'
+    ],
+    status: 'active',
+    detections: 89,
+    triggerKeywords: ['.xlsx', '.xls', '.pdf', '.doc', '.ppt']
+  },
+  {
     id: 'pci-dss',
     title: 'PCI DSS Compliance',
     description: 'Payment Card Industry Data Security Standard monitoring',
@@ -19,7 +70,8 @@ const securityScenarios = [
       'Network segmentation compliance'
     ],
     status: 'active',
-    detections: 23
+    detections: 12,
+    triggerKeywords: ['card', 'payment', 'PAN', 'cardholder']
   },
   {
     id: 'gdpr',
@@ -34,67 +86,59 @@ const securityScenarios = [
       'Data retention policy enforcement'
     ],
     status: 'active',
-    detections: 45
+    detections: 45,
+    triggerKeywords: ['personal data', 'GDPR', 'consent', 'privacy']
   },
   {
-    id: 'hipaa',
-    title: 'HIPAA Healthcare Data',
-    description: 'Health Insurance Portability and Accountability Act',
-    framework: 'HIPAA',
-    severity: 'critical',
-    rules: [
-      'Protected Health Information (PHI) detection',
-      'Medical record access monitoring',
-      'Healthcare provider authentication',
-      'Audit trail compliance'
-    ],
-    status: 'active',
-    detections: 12
-  },
-  {
-    id: 'nist',
-    title: 'NIST Cybersecurity Framework',
-    description: 'National Institute of Standards and Technology guidelines',
-    framework: 'NIST CSF',
-    severity: 'medium',
-    rules: [
-      'Asset identification and classification',
-      'Threat intelligence correlation',
-      'Incident response procedures',
-      'Recovery planning validation'
-    ],
-    status: 'active',
-    detections: 67
-  },
-  {
-    id: 'sox',
-    title: 'SOX Financial Controls',
-    description: 'Sarbanes-Oxley Act financial data protection',
-    framework: 'SOX',
+    id: 'industrial-data',
+    title: 'Industrial & Manufacturing Data',
+    description: 'Protection of industrial processes and manufacturing data',
+    framework: 'Industrial Security',
     severity: 'high',
     rules: [
-      'Financial data classification',
-      'Executive access monitoring',
-      'Audit trail integrity',
-      'Internal control validation'
+      'Training and stipend record protection',
+      'Industrial process documentation',
+      'Manufacturing data classification',
+      'Plant-specific information monitoring',
+      'Vendor and supplier data protection'
     ],
     status: 'active',
-    detections: 8
+    detections: 34,
+    triggerKeywords: ['industrial', 'plant', 'manufacturing', 'trainees', 'production']
   },
   {
-    id: 'iso27001',
-    title: 'ISO 27001 ISMS',
-    description: 'Information Security Management System standard',
-    framework: 'ISO 27001',
+    id: 'endpoint-monitoring',
+    title: 'Endpoint Data Protection',
+    description: 'Corporate desktop and endpoint monitoring',
+    framework: 'Endpoint Security',
     severity: 'medium',
     rules: [
-      'Risk assessment automation',
-      'Security control monitoring',
-      'Incident management workflow',
-      'Continuous improvement tracking'
+      'Corporate domain endpoint tracking',
+      'Desktop application monitoring',
+      'Process execution logging',
+      'IP address-based access control',
+      'User activity correlation'
+    ],
+    status: 'active',
+    detections: 67,
+    triggerKeywords: ['endpoint', 'desktop', 'corporate', 'domain']
+  },
+  {
+    id: 'data-classification',
+    title: 'Data Classification & Labeling',
+    description: 'Automatic data classification based on content and context',
+    framework: 'Data Classification',
+    severity: 'medium',
+    rules: [
+      'Binary file type classification',
+      'Content-based sensitivity scoring',
+      'Source location risk assessment',
+      'Recipient domain validation',
+      'File size and format analysis'
     ],
     status: 'monitoring',
-    detections: 34
+    detections: 198,
+    triggerKeywords: ['classification', 'sensitivity', 'binary', 'format']
   }
 ];
 
@@ -171,6 +215,22 @@ export const SecurityScenarios = () => {
                     )}
                   </div>
                 </div>
+
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Trigger Keywords:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {scenario.triggerKeywords.slice(0, 3).map((keyword, index) => (
+                      <Badge key={index} variant="outline" className="text-xs">
+                        {keyword}
+                      </Badge>
+                    ))}
+                    {scenario.triggerKeywords.length > 3 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{scenario.triggerKeywords.length - 3}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -199,6 +259,17 @@ export const SecurityScenarios = () => {
                   <Badge variant="outline">Active</Badge>
                 </div>
               ))}
+              
+              <div className="space-y-3">
+                <div className="text-sm font-medium">Trigger Keywords:</div>
+                <div className="flex flex-wrap gap-2">
+                  {securityScenarios.find(s => s.id === selectedScenario)?.triggerKeywords.map((keyword, index) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {keyword}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
               
               <div className="flex gap-2 pt-4">
                 <Button variant="outline" size="sm">Configure Rules</Button>
