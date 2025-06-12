@@ -1,21 +1,31 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, Database, Search, Logs } from "lucide-react";
+import { Shield, Database, Search, Logs, Upload, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { DLPLogStream } from "@/components/DLPLogStream";
 import { SecurityScenarios } from "@/components/SecurityScenarios";
 import { DLPMetrics } from "@/components/DLPMetrics";
 import { LogAnalytics } from "@/components/LogAnalytics";
+import { FileUpload } from "@/components/FileUpload";
+import { AdvancedFiltering, FilterConfig } from "@/components/AdvancedFiltering";
 import { dlpService } from "@/services/dlpService";
 
 const Index = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
+  const [uploadedLogs, setUploadedLogs] = useState<any[]>([]);
+  const [activeFilters, setActiveFilters] = useState<FilterConfig>({
+    searchText: "",
+    excludeInternalEmails: true,
+    excludeAllowedDomains: true,
+    excludeExchangeSystem: true,
+    excludeCloudStorage: true,
+    showSuspiciousOnly: false
+  });
 
   const { data: dlpStats } = useQuery({
     queryKey: ['dlp-stats'],
@@ -35,6 +45,16 @@ const Index = () => {
     }
   }, [dlpStats]);
 
+  const handleFilesProcessed = (logs: any[]) => {
+    setUploadedLogs(logs);
+    console.log("Processed logs:", logs);
+  };
+
+  const handleFilterChange = (filters: FilterConfig) => {
+    setActiveFilters(filters);
+    console.log("Active filters:", filters);
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -46,7 +66,7 @@ const Index = () => {
               DLP Analysis Dashboard
             </h1>
             <p className="text-muted-foreground mt-2">
-              Real-time Data Loss Prevention monitoring and analysis
+              Advanced Data Loss Prevention monitoring with file processing and suspicious activity detection
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -68,6 +88,16 @@ const Index = () => {
             <Shield className="h-4 w-4" />
             <AlertDescription>
               {alertCount} critical security alerts detected. Immediate attention required.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Upload Status */}
+        {uploadedLogs.length > 0 && (
+          <Alert>
+            <Upload className="h-4 w-4" />
+            <AlertDescription>
+              Successfully processed {uploadedLogs.length} log entries from uploaded files.
             </AlertDescription>
           </Alert>
         )}
@@ -109,24 +139,33 @@ const Index = () => {
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Log Volume</CardTitle>
+              <CardTitle className="text-sm font-medium">Processed Files</CardTitle>
               <Logs className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{dlpStats?.logVolume || '2.4K'}</div>
-              <p className="text-xs text-muted-foreground">events/minute</p>
+              <div className="text-2xl font-bold">{uploadedLogs.length}</div>
+              <p className="text-xs text-muted-foreground">log entries</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="logs" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="upload" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="upload">File Upload</TabsTrigger>
+            <TabsTrigger value="filtering">Advanced Filtering</TabsTrigger>
             <TabsTrigger value="logs">Real-time Logs</TabsTrigger>
             <TabsTrigger value="scenarios">Security Scenarios</TabsTrigger>
-            <TabsTrigger value="metrics">DLP Metrics</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="upload" className="space-y-4">
+            <FileUpload onFilesProcessed={handleFilesProcessed} />
+          </TabsContent>
+
+          <TabsContent value="filtering" className="space-y-4">
+            <AdvancedFiltering onFilterChange={handleFilterChange} />
+          </TabsContent>
 
           <TabsContent value="logs" className="space-y-4">
             <Card>
@@ -144,10 +183,6 @@ const Index = () => {
 
           <TabsContent value="scenarios" className="space-y-4">
             <SecurityScenarios />
-          </TabsContent>
-
-          <TabsContent value="metrics" className="space-y-4">
-            <DLPMetrics data={securityMetrics} />
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-4">
