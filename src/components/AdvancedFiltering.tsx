@@ -26,7 +26,15 @@ const ALLOWED_DOMAINS = [
   "1drv.ms", "onedrive.live.com", "onedrive.com", "pricol.freshservice.com",
   "bajajauto.co.in", "abdrive.bajajauto.com", "myapp.pricol.co.in",
   "tradewithtvs.com", "dfos.azurewebsites.net", "www.falstad.com",
-  "freepdfconvert.com", "pricol.co.in", "pricol.com"
+  "freepdfconvert.com", "pricol.co.in", "pricol.com", "webpp.heromotocorp.biz",
+  "pricollimited.atlassian.net", "unifiedportal-mem.epfindia.gov.in", "adobe.com",
+  "eportal.incometax.gov.in", "gemini.google.com", "srm.inservices.tatamotors.com",
+  "bulletlogistics.in", "twinengineers.com", "tvscorp.tvsmotor.com",
+  "srm.ashokleyland.com", "dgft.gov.in", "v2.zenclass.in", "smlisuzu.net",
+  "chatgpt.com", "pricolprecision.com", "pricolasia.com", "mca.gov.in",
+  "pricoltravel.com", "stimulate.icsi.edu", "airtel.com", "www.sejda.com",
+  "srmapps.mahindra.com", "cibnext.icicibank.com", "www.freeconvert.com",
+  "publish.buffer.com", "tvsholdings.com", "sacl.co.in", "service.ariba.com"
 ];
 
 export const AdvancedFiltering = ({ onFilterChange }: FilteringProps) => {
@@ -128,11 +136,13 @@ export const AdvancedFiltering = ({ onFilterChange }: FilteringProps) => {
         <div className="space-y-2">
           <Label>Allowed Domains ({ALLOWED_DOMAINS.length})</Label>
           <div className="max-h-32 overflow-y-auto space-y-1">
-            {ALLOWED_DOMAINS.map((domain, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {domain}
-              </Badge>
-            ))}
+            <div className="grid grid-cols-2 gap-1">
+              {ALLOWED_DOMAINS.map((domain, index) => (
+                <Badge key={index} variant="outline" className="text-xs">
+                  {domain}
+                </Badge>
+              ))}
+            </div>
           </div>
         </div>
 

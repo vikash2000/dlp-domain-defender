@@ -13,6 +13,7 @@ import { LogAnalytics } from "@/components/LogAnalytics";
 import { FileUpload } from "@/components/FileUpload";
 import { AdvancedFiltering, FilterConfig } from "@/components/AdvancedFiltering";
 import { dlpService } from "@/services/dlpService";
+import { WhitelistManager } from "@/components/WhitelistManager";
 
 const Index = () => {
   const [isStreaming, setIsStreaming] = useState(false);
@@ -151,9 +152,10 @@ const Index = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="upload">File Upload</TabsTrigger>
             <TabsTrigger value="filtering">Advanced Filtering</TabsTrigger>
+            <TabsTrigger value="whitelist">Whitelist</TabsTrigger>
             <TabsTrigger value="logs">Real-time Logs</TabsTrigger>
             <TabsTrigger value="scenarios">Security Scenarios</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -165,6 +167,10 @@ const Index = () => {
 
           <TabsContent value="filtering" className="space-y-4">
             <AdvancedFiltering onFilterChange={handleFilterChange} />
+          </TabsContent>
+
+          <TabsContent value="whitelist" className="space-y-4">
+            <WhitelistManager />
           </TabsContent>
 
           <TabsContent value="logs" className="space-y-4">
