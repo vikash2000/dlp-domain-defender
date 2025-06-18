@@ -9,7 +9,95 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      whitelist_audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: string | null
+          domain_id: string | null
+          domain_name: string
+          id: string
+          ip_address: string | null
+          performed_by: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: string | null
+          domain_id?: string | null
+          domain_name: string
+          id?: string
+          ip_address?: string | null
+          performed_by?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: string | null
+          domain_id?: string | null
+          domain_name?: string
+          id?: string
+          ip_address?: string | null
+          performed_by?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whitelist_audit_logs_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "whitelist_domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whitelist_domains: {
+        Row: {
+          added_by: string | null
+          category: string | null
+          created_at: string | null
+          data_class: string | null
+          domain: string
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          is_wildcard: boolean | null
+          notes: string | null
+          risk_level: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          category?: string | null
+          created_at?: string | null
+          data_class?: string | null
+          domain: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_wildcard?: boolean | null
+          notes?: string | null
+          risk_level?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          category?: string | null
+          created_at?: string | null
+          data_class?: string | null
+          domain?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_wildcard?: boolean | null
+          notes?: string | null
+          risk_level?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

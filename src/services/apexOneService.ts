@@ -1,177 +1,176 @@
-import { PrismaClient } from '@prisma/client';
-import axios from 'axios';
-import { createLogger, format, transports } from 'winston';
+import { whitelistService } from './whitelistService';
 
-const prisma = new PrismaClient();
-
-// Configure logger
-const logger = createLogger({
-  format: format.combine(
-    format.timestamp(),
-    format.json()
-  ),
-  transports: [
-    new transports.File({ filename: 'error.log', level: 'error' }),
-    new transports.File({ filename: 'combined.log' })
-  ]
-});
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new transports.Console({
-    format: format.simple()
-  }));
+export interface SecurityLog {
+  id: string;
+  timestamp: string;
+  eventType: string;
+  severity: string;
+  source: string;
+  destination: string;
+  description: string;
+  user: string;
+  action: string;
 }
 
-interface ApexOneConfig {
-  serverUrl: string;
-  apiKey: string;
-  username: string;
-  password: string;
+export interface SecurityLogFilters {
+  startTime?: string;
+  endTime?: string;
+  eventType?: string;
+  severity?: string;
+  source?: string;
+  destination?: string;
+  user?: string;
+  action?: string;
+  page?: number;
+  limit?: number;
 }
 
-class ApexOneService {
-  private config: ApexOneConfig;
-  private token: string | null = null;
+export const apexOneService = {
+  async analyzeLogs(logs: SecurityLog[]): Promise<SecurityLog[]> {
+    const analyzedLogs = logs.map(log => {
+      let suspicious = false;
+      let reason = '';
 
-  constructor(config: ApexOneConfig) {
-    this.config = config;
-  }
-
-  private async authenticate() {
-    try {
-      const response = await axios.post(`${this.config.serverUrl}/api/auth`, {
-        username: this.config.username,
-        password: this.config.password,
-        apiKey: this.config.apiKey
-      });
-      this.token = response.data.token;
-      return this.token;
-    } catch (error) {
-      logger.error('Authentication failed:', error);
-      throw new Error('Failed to authenticate with Apex One');
-    }
-  }
-
-  private async getHeaders() {
-    if (!this.token) {
-      await this.authenticate();
-    }
-    return {
-      'Authorization': `Bearer ${this.token}`,
-      'Content-Type': 'application/json'
-    };
-  }
-
-  async fetchRecentLogs(minutes: number = 5) {
-    try {
-      const headers = await this.getHeaders();
-      const response = await axios.get(
-        `${this.config.serverUrl}/api/logs/recent`,
-        {
-          headers,
-          params: {
-            minutes,
-            type: 'DLP' // Filter for DLP logs
-          }
-        }
-      );
-
-      // Process and store logs
-      for (const log of response.data.logs) {
-        await this.processLog(log);
+      if (log.eventType === 'Malware Detected' && log.severity === 'High') {
+        suspicious = true;
+        reason = 'High severity malware detected';
       }
 
-      return response.data.logs;
-    } catch (error) {
-      logger.error('Failed to fetch logs:', error);
-      throw new Error('Failed to fetch logs from Apex One');
-    }
-  }
-
-  private async processLog(log: any) {
-    try {
-      // Check if domain exists in whitelist
-      const domain = log.domain ? await prisma.whitelistedDomain.findFirst({
-        where: { domain: log.domain }
-      }) : null;
-
-      // Create log entry
-      await prisma.apexOneLog.create({
-        data: {
-          eventType: log.eventType,
-          severity: log.severity,
-          sourceIP: log.sourceIP,
-          destinationIP: log.destinationIP,
-          domainName: log.domain,
-          filePath: log.filePath,
-          fileName: log.fileName,
-          fileHash: log.fileHash,
-          action: log.action,
-          details: JSON.stringify(log.details),
-          status: 'PENDING',
-          domainId: domain?.id,
-          timestamp: new Date(log.timestamp)
-        }
-      });
-
-      // Update domain reputation if needed
-      if (domain && log.eventType === 'DETECTION') {
-        await this.updateDomainReputation(domain.id, log);
+      if (log.action === 'Blocked' && log.severity === 'Medium') {
+        suspicious = true;
+        reason = 'Medium severity event blocked';
       }
-    } catch (error) {
-      logger.error('Failed to process log:', error);
-    }
-  }
 
-  private async updateDomainReputation(domainId: number, log: any) {
+      return {
+        ...log,
+        isSuspicious: suspicious,
+        suspiciousReason: reason
+      };
+    });
+
+    return analyzedLogs;
+  },
+
+  async authenticate(server: string, username: string, password: string): Promise<{ success: boolean; message: string; token?: string }> {
     try {
-      const reputation = await prisma.domainReputation.findUnique({
-        where: { domainId }
+      const url = `https://${server}/api/login`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          domain: 'local'
+        })
       });
 
-      if (reputation) {
-        // Update existing reputation
-        await prisma.domainReputation.update({
-          where: { domainId },
-          data: {
-            score: reputation.score - 10, // Decrease score for detection
-            threats: JSON.stringify([...JSON.parse(reputation.threats), log]),
-            lastChecked: new Date(),
-            updatedAt: new Date()
-          }
-        });
+      const data: any = await response.json();
+
+      if (response.ok && data.token) {
+        return {
+          success: true,
+          message: 'Authentication successful',
+          token: data.token
+        };
       } else {
-        // Create new reputation
-        await prisma.domainReputation.create({
-          data: {
-            domainId,
-            score: 70, // Start with a lower score
-            threats: JSON.stringify([log]),
-            lastChecked: new Date()
+        return {
+          success: false,
+          message: data.message || 'Authentication failed'
+        };
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      return {
+        success: false,
+        message: 'Network error during authentication'
+      };
+    }
+  },
+
+  async fetchSecurityLogs(server: string, token: string, filters?: SecurityLogFilters): Promise<SecurityLog[]> {
+    try {
+      let url = `https://${server}/api/security_logs?`;
+
+      if (filters) {
+        Object.keys(filters).forEach(key => {
+          if (filters[key]) {
+            url += `${key}=${filters[key]}&`;
           }
         });
       }
+
+      url = url.slice(0, -1);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        }
+      });
+
+      const data: any = await response.json();
+
+      if (response.ok && data.logs && Array.isArray(data.logs)) {
+        return data.logs.map((log: any) => ({
+          id: log.id || Math.random().toString(),
+          timestamp: log.timestamp || new Date().toISOString(),
+          eventType: log.eventType || log.event_type || 'Unknown',
+          severity: log.severity || 'Medium',
+          source: log.source || 'Unknown',
+          destination: log.destination || '',
+          description: log.description || log.message || '',
+          user: log.user || log.username || 'Unknown',
+          action: log.action || 'Unknown'
+        }));
+      } else {
+        console.error('Invalid response format:', data);
+        return [];
+      }
     } catch (error) {
-      logger.error('Failed to update domain reputation:', error);
+      console.error('Error fetching security logs:', error);
+      return [];
+    }
+  },
+
+  async analyzeDomainsAgainstWhitelist(logs: SecurityLog[]): Promise<SecurityLog[]> {
+    try {
+      const results: SecurityLog[] = [];
+      
+      for (const log of logs) {
+        if (log.destination) {
+          const domain = this.extractDomain(log.destination);
+          const isWhitelisted = await whitelistService.isDomainWhitelisted(domain);
+          
+          results.push({
+            ...log,
+            extractedDomain: domain,
+            isWhitelisted,
+            suspiciousReason: !isWhitelisted ? 'Domain not in whitelist' : null
+          });
+        } else {
+          results.push(log);
+        }
+      }
+      
+      return results;
+    } catch (error) {
+      console.error('Error analyzing domains against whitelist:', error);
+      return logs;
+    }
+  },
+
+  extractDomain(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname;
+    } catch (error) {
+      console.error('Error extracting domain:', error);
+      return url;
     }
   }
-
-  // Start real-time monitoring
-  async startMonitoring(intervalMinutes: number = 5) {
-    logger.info('Starting Apex One log monitoring');
-    
-    // Initial fetch
-    await this.fetchRecentLogs(intervalMinutes);
-
-    // Set up interval
-    setInterval(async () => {
-      try {
-        await this.fetchRecentLogs(intervalMinutes);
-      } catch (error) {
-        logger.error('Error in monitoring interval:', error);
-      }
-    }, intervalMinutes * 60 * 1000);
-  }
-}
-
-export default ApexOneService; 
+};

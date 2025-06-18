@@ -1,195 +1,229 @@
-import { apiService } from './apiService';
 
-// Mock data for whitelisted domains - this will be replaced with real database data
-const mockWhitelistedDomains = [
-  'google.com',
-  '*.pricol.com',
-  'github.com',
-  '*.microsoft.com',
-  'linkedin.com',
-  'stackoverflow.com',
-  '*.amazon.com',
-  'zoom.us',
-  'slack.com',
-  '*.googleapis.com',
-  'pdfescape.com',
-  'smallpdf.com',
-  'onedrive.com',
-  'pricol.co.in',
-  'bajajauto.co.in',
-  'tradewithtvs.com',
-  'adobe.com',
-  'chatgpt.com',
-  'airtel.com',
-  'cibnext.icicibank.com'
-];
-
-// Mock data with full details
-const mockDomainsWithDetails = mockWhitelistedDomains.map((domain, index) => ({
-  id: index + 1,
-  domain,
-  category: domain.includes('pricol') ? 'company_service' : 
-           domain.includes('pdf') ? 'pdf_service' : 
-           domain.includes('microsoft') || domain.includes('onedrive') ? 'cloud_storage' :
-           domain.includes('bajaj') || domain.includes('tvs') ? 'automotive' :
-           domain.includes('gov') ? 'government' :
-           domain.includes('bank') ? 'banking' : 'external',
-  isWildcard: domain.includes('*'),
-  notes: `Mock domain ${index + 1} - ${domain}`,
-  addedBy: 'system',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  isActive: true,
-  riskLevel: 'LOW',
-  dataClass: 'PUBLIC',
-  auditLogs: []
-}));
+import { supabase } from '@/integrations/supabase/client';
 
 export const whitelistService = {
   // Get all whitelisted domains
   async getWhitelist(): Promise<string[]> {
     try {
-      // Try API first
-      const response = await apiService.getWhitelistWithDetails();
-      return response.domains.map(domain => domain.domain);
+      const { data, error } = await supabase
+        .from('whitelist_domains')
+        .select('domain')
+        .eq('is_active', true);
+
+      if (error) throw error;
+      return data?.map(item => item.domain) || [];
     } catch (error) {
-      console.log('API not available, using mock data');
-      return mockWhitelistedDomains;
+      console.error('Error fetching whitelist:', error);
+      return [];
     }
   },
 
   // Get whitelist with full details
   async getWhitelistWithDetails(): Promise<{ domains: any[]; total: number }> {
     try {
-      // Try API first
-      return await apiService.getWhitelistWithDetails();
-    } catch (error) {
-      console.log('API not available, using mock data');
+      const { data, error } = await supabase
+        .from('whitelist_domains')
+        .select(`
+          *,
+          auditLogs:whitelist_audit_logs(*)
+        `)
+        .order('domain', { ascending: true });
+
+      if (error) throw error;
+      
       return {
-        domains: mockDomainsWithDetails,
-        total: mockDomainsWithDetails.length
+        domains: data || [],
+        total: data?.length || 0
       };
+    } catch (error) {
+      console.error('Error fetching whitelist with details:', error);
+      return { domains: [], total: 0 };
     }
   },
 
   // Add domain to whitelist
   async addToWhitelist(domain: string, notes?: string, addedBy?: string): Promise<any> {
     try {
-      // Try API first
-      return await apiService.addToWhitelist(domain, notes, addedBy);
-    } catch (error) {
-      console.log('API not available, adding to mock data');
-      const newDomain = {
-        id: Date.now(),
-        domain: domain.toLowerCase(),
-        category: 'external',
-        isWildcard: domain.includes('*'),
-        notes: notes || '',
-        addedBy: addedBy || 'user',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isActive: true,
-        riskLevel: 'LOW',
-        dataClass: 'PUBLIC',
-        auditLogs: []
-      };
+      const normalizedDomain = domain.toLowerCase().trim();
       
-      mockDomainsWithDetails.push(newDomain);
-      return newDomain;
+      // Insert the domain
+      const { data: domainData, error: domainError } = await supabase
+        .from('whitelist_domains')
+        .insert({
+          domain: normalizedDomain,
+          category: this.categorizeDomain(normalizedDomain),
+          is_wildcard: domain.includes('*'),
+          notes: notes || '',
+          added_by: addedBy || 'user',
+          risk_level: 'LOW',
+          data_class: 'PUBLIC'
+        })
+        .select()
+        .single();
+
+      if (domainError) throw domainError;
+
+      // Add audit log
+      await supabase
+        .from('whitelist_audit_logs')
+        .insert({
+          domain_id: domainData.id,
+          action: 'ADD',
+          domain_name: normalizedDomain,
+          performed_by: addedBy || 'user',
+          details: notes || 'Domain added to whitelist'
+        });
+
+      return domainData;
+    } catch (error) {
+      console.error('Error adding to whitelist:', error);
+      throw error;
     }
   },
 
   // Update whitelist domain
   async updateWhitelistDomain(domain: string, updates: Record<string, any>): Promise<any> {
     try {
-      // Try API first
-      return await apiService.updateWhitelistDomain(domain, updates);
+      const normalizedDomain = domain.toLowerCase().trim();
+      
+      const { data, error } = await supabase
+        .from('whitelist_domains')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('domain', normalizedDomain)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add audit log
+      await supabase
+        .from('whitelist_audit_logs')
+        .insert({
+          domain_id: data.id,
+          action: 'UPDATE',
+          domain_name: normalizedDomain,
+          performed_by: updates.updatedBy || 'user',
+          details: JSON.stringify(updates)
+        });
+
+      return data;
     } catch (error) {
-      console.log('API not available, updating mock data');
-      const domainIndex = mockDomainsWithDetails.findIndex(d => d.domain === domain.toLowerCase());
-      if (domainIndex === -1) {
-        throw new Error('Domain not found');
-      }
-      
-      mockDomainsWithDetails[domainIndex] = {
-        ...mockDomainsWithDetails[domainIndex],
-        ...updates,
-        updatedAt: new Date().toISOString()
-      };
-      
-      return mockDomainsWithDetails[domainIndex];
+      console.error('Error updating whitelist domain:', error);
+      throw error;
     }
   },
 
   // Remove domain from whitelist
   async removeFromWhitelist(domain: string): Promise<void> {
     try {
-      // Try API first
-      await apiService.removeFromWhitelist(domain);
-    } catch (error) {
-      console.log('API not available, removing from mock data');
-      const domainIndex = mockDomainsWithDetails.findIndex(d => d.domain === domain.toLowerCase());
-      if (domainIndex === -1) {
-        throw new Error('Domain not found');
-      }
+      const normalizedDomain = domain.toLowerCase().trim();
       
-      mockDomainsWithDetails.splice(domainIndex, 1);
+      // Get domain data first for audit log
+      const { data: domainData } = await supabase
+        .from('whitelist_domains')
+        .select('id')
+        .eq('domain', normalizedDomain)
+        .single();
+
+      if (domainData) {
+        // Add audit log before deletion
+        await supabase
+          .from('whitelist_audit_logs')
+          .insert({
+            domain_id: domainData.id,
+            action: 'REMOVE',
+            domain_name: normalizedDomain,
+            performed_by: 'user',
+            details: 'Domain removed from whitelist'
+          });
+      }
+
+      // Delete the domain
+      const { error } = await supabase
+        .from('whitelist_domains')
+        .delete()
+        .eq('domain', normalizedDomain);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error removing from whitelist:', error);
+      throw error;
     }
   },
 
   // Check if domain is whitelisted
   async isDomainWhitelisted(domain: string): Promise<boolean> {
     try {
-      // Try API first
-      const result = await apiService.checkDomainWhitelist(domain);
-      return result.isWhitelisted;
-    } catch (error) {
-      console.log('API not available, checking mock data');
-      const normalizedDomain = domain.toLowerCase();
+      const normalizedDomain = domain.toLowerCase().trim();
       
       // Check for exact match
-      const exactMatch = mockDomainsWithDetails.find(d => 
-        d.domain === normalizedDomain && d.isActive
-      );
-      
-      if (exactMatch) {
-        return true;
-      }
-      
+      const { data: exactMatch } = await supabase
+        .from('whitelist_domains')
+        .select('domain')
+        .eq('domain', normalizedDomain)
+        .eq('is_active', true)
+        .single();
+
+      if (exactMatch) return true;
+
       // Check for wildcard matches
-      const wildcardMatch = mockDomainsWithDetails.find(d => {
-        if (!d.isWildcard || !d.isActive) return false;
-        const pattern = d.domain.replace(/\*/g, '.*');
-        const regex = new RegExp(`^${pattern}$`);
-        return regex.test(normalizedDomain);
-      });
-      
-      return !!wildcardMatch;
+      const { data: wildcardDomains } = await supabase
+        .from('whitelist_domains')
+        .select('domain')
+        .eq('is_wildcard', true)
+        .eq('is_active', true);
+
+      if (wildcardDomains) {
+        return wildcardDomains.some(wildcard => {
+          const pattern = wildcard.domain.replace(/\*/g, '.*');
+          const regex = new RegExp(`^${pattern}$`);
+          return regex.test(normalizedDomain);
+        });
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error checking domain whitelist:', error);
+      return false;
     }
   },
 
   // Get whitelist statistics
   async getWhitelistStats(): Promise<any> {
     try {
-      // Try API first
-      return await apiService.getWhitelistStats();
-    } catch (error) {
-      console.log('API not available, using mock stats');
-      const total = mockDomainsWithDetails.length;
-      const active = mockDomainsWithDetails.filter(d => d.isActive).length;
-      const wildcard = mockDomainsWithDetails.filter(d => d.isWildcard).length;
+      const { data: domains } = await supabase
+        .from('whitelist_domains')
+        .select('category, is_active, is_wildcard');
+
+      if (!domains) return { total: 0, active: 0, wildcard: 0, byCategory: {} };
+
+      const total = domains.length;
+      const active = domains.filter(d => d.is_active).length;
+      const wildcard = domains.filter(d => d.is_wildcard).length;
       
-      const byCategory = mockDomainsWithDetails.reduce((acc: any, domain) => {
+      const byCategory = domains.reduce((acc: any, domain) => {
         acc[domain.category] = (acc[domain.category] || 0) + 1;
         return acc;
       }, {});
-      
-      return {
-        total,
-        active,
-        wildcard,
-        byCategory
-      };
+
+      return { total, active, wildcard, byCategory };
+    } catch (error) {
+      console.error('Error getting whitelist stats:', error);
+      return { total: 0, active: 0, wildcard: 0, byCategory: {} };
     }
+  },
+
+  // Helper function to categorize domains
+  categorizeDomain(domain: string): string {
+    if (domain.includes('pricol')) return 'company_service';
+    if (domain.includes('pdf')) return 'pdf_service';
+    if (domain.includes('microsoft') || domain.includes('onedrive')) return 'cloud_storage';
+    if (domain.includes('bajaj') || domain.includes('tvs')) return 'automotive';
+    if (domain.includes('gov')) return 'government';
+    if (domain.includes('bank')) return 'banking';
+    return 'external';
   }
 };
