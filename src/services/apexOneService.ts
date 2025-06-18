@@ -1,3 +1,4 @@
+
 import { whitelistService } from './whitelistService';
 
 export interface SecurityLog {
@@ -10,6 +11,10 @@ export interface SecurityLog {
   description: string;
   user: string;
   action: string;
+  isSuspicious?: boolean;
+  suspiciousReason?: string | null;
+  extractedDomain?: string;
+  isWhitelisted?: boolean;
 }
 
 export interface SecurityLogFilters {
@@ -174,3 +179,6 @@ export const apexOneService = {
     }
   }
 };
+
+// Default export for compatibility
+export default apexOneService;
