@@ -1,85 +1,146 @@
-
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Shield, Database, Search } from "lucide-react";
+import { dlpService } from "@/services/dlpService";
+import { serverConfig } from "@/config/server";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const topThreats = [
-  {
-    threat: 'Credit Card Data Exposure',
-    severity: 'critical',
-    occurrences: 45,
-    lastSeen: '2 minutes ago',
-    source: 'Email Gateway',
-    action: 'Blocked'
-  },
-  {
-    threat: 'SSN Pattern Detection',
-    severity: 'high',
-    occurrences: 32,
-    lastSeen: '5 minutes ago',
-    source: 'File Server',
-    action: 'Quarantined'
-  },
-  {
-    threat: 'Healthcare Data (PHI)',
-    severity: 'critical',
-    occurrences: 28,
-    lastSeen: '8 minutes ago',
-    source: 'Database Export',
-    action: 'Blocked'
-  },
-  {
-    threat: 'Financial Records',
-    severity: 'high',
-    occurrences: 23,
-    lastSeen: '12 minutes ago',
-    source: 'Web Upload',
-    action: 'Encrypted'
-  },
-  {
-    threat: 'Intellectual Property',
-    severity: 'medium',
-    occurrences: 19,
-    lastSeen: '15 minutes ago',
-    source: 'Cloud Storage',
-    action: 'Monitored'
-  }
-];
+interface ThreatData {
+  threat: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  occurrences: number;
+  lastSeen: string;
+  source: string;
+  action: string;
+}
 
-const policyViolations = [
-  {
-    policy: 'PCI-DSS Card Data Protection',
-    violations: 67,
-    trend: '+15%',
-    department: 'Finance',
-    status: 'Under Review'
-  },
-  {
-    policy: 'GDPR Personal Data Transfer',
-    violations: 43,
-    trend: '-8%',
-    department: 'Marketing',
-    status: 'Resolved'
-  },
-  {
-    policy: 'HIPAA Healthcare Privacy',
-    violations: 31,
-    trend: '+22%',
-    department: 'Medical',
-    status: 'Critical'
-  },
-  {
-    policy: 'SOX Financial Controls',
-    violations: 18,
-    trend: '-5%',
-    department: 'Accounting',
-    status: 'Monitoring'
-  }
-];
+interface PolicyViolation {
+  policy: string;
+  violations: number;
+  trend: string;
+  department: string;
+  status: string;
+}
 
 export const LogAnalytics = () => {
+  const [topThreats, setTopThreats] = useState<ThreatData[]>([]);
+  const [policyViolations, setPolicyViolations] = useState<PolicyViolation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAnalyticsData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        if (serverConfig.useMockData) {
+          // Use mock data if configured
+          setTopThreats([
+            {
+              threat: 'Credit Card Data Exposure',
+              severity: 'critical',
+              occurrences: 45,
+              lastSeen: '2 minutes ago',
+              source: 'Email Gateway',
+              action: 'Blocked'
+            },
+            {
+              threat: 'SSN Pattern Detection',
+              severity: 'high',
+              occurrences: 32,
+              lastSeen: '5 minutes ago',
+              source: 'File Server',
+              action: 'Quarantined'
+            },
+            {
+              threat: 'Healthcare Data (PHI)',
+              severity: 'critical',
+              occurrences: 28,
+              lastSeen: '8 minutes ago',
+              source: 'Database Export',
+              action: 'Blocked'
+            },
+            {
+              threat: 'Financial Records',
+              severity: 'high',
+              occurrences: 23,
+              lastSeen: '12 minutes ago',
+              source: 'Web Upload',
+              action: 'Encrypted'
+            },
+            {
+              threat: 'Intellectual Property',
+              severity: 'medium',
+              occurrences: 19,
+              lastSeen: '15 minutes ago',
+              source: 'Cloud Storage',
+              action: 'Monitored'
+            }
+          ]);
+
+          setPolicyViolations([
+            {
+              policy: 'PCI-DSS Card Data Protection',
+              violations: 67,
+              trend: '+15%',
+              department: 'Finance',
+              status: 'Under Review'
+            },
+            {
+              policy: 'GDPR Personal Data Transfer',
+              violations: 43,
+              trend: '-8%',
+              department: 'Marketing',
+              status: 'Resolved'
+            },
+            {
+              policy: 'HIPAA Healthcare Privacy',
+              violations: 31,
+              trend: '+22%',
+              department: 'Medical',
+              status: 'Critical'
+            },
+            {
+              policy: 'SOX Financial Controls',
+              violations: 18,
+              trend: '-5%',
+              department: 'Accounting',
+              status: 'Monitoring'
+            }
+          ]);
+        } else {
+          // Fetch real analytics data from server
+          const [threatsResponse, violationsResponse] = await Promise.all([
+            fetch(`${serverConfig.apiBaseUrl}/analytics/threats`),
+            fetch(`${serverConfig.apiBaseUrl}/analytics/policy-violations`)
+          ]);
+
+          if (threatsResponse.ok && violationsResponse.ok) {
+            const threatsData = await threatsResponse.json();
+            const violationsData = await violationsResponse.json();
+            
+            setTopThreats(threatsData.threats || []);
+            setPolicyViolations(violationsData.violations || []);
+          } else {
+            throw new Error('Failed to fetch analytics data');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch analytics data:', err);
+        setError('Failed to load analytics data - using fallback data');
+        // Keep existing mock data as fallback
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAnalyticsData();
+  }, []);
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical': return 'destructive';
@@ -100,8 +161,30 @@ export const LogAnalytics = () => {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <Database className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-muted-foreground">Loading analytics data...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {error && (
+        <Alert variant="destructive">
+          <Shield className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Top Threats Table */}
       <Card>
         <CardHeader>

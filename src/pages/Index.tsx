@@ -14,6 +14,8 @@ import { FileUpload } from "@/components/FileUpload";
 import { AdvancedFiltering, FilterConfig } from "@/components/AdvancedFiltering";
 import { dlpService } from "@/services/dlpService";
 import { WhitelistManager } from "@/components/WhitelistManager";
+import { WindowsServerAuth } from "@/components/WindowsServerAuth";
+import { isWindowsServerConfigured } from "@/config/windowsServer";
 
 const Index = () => {
   const [isStreaming, setIsStreaming] = useState(false);
@@ -27,6 +29,7 @@ const Index = () => {
     excludeCloudStorage: true,
     showSuspiciousOnly: false
   });
+  const [windowsServerAuthenticated, setWindowsServerAuthenticated] = useState(false);
 
   const { data: dlpStats } = useQuery({
     queryKey: ['dlp-stats'],
@@ -54,6 +57,16 @@ const Index = () => {
   const handleFilterChange = (filters: FilterConfig) => {
     setActiveFilters(filters);
     console.log("Active filters:", filters);
+  };
+
+  const handleWindowsServerAuthSuccess = () => {
+    setWindowsServerAuthenticated(true);
+    console.log("Windows server authentication successful");
+  };
+
+  const handleWindowsServerAuthFailure = (error: string) => {
+    setWindowsServerAuthenticated(false);
+    console.error("Windows server authentication failed:", error);
   };
 
   return (
@@ -152,10 +165,11 @@ const Index = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="upload">File Upload</TabsTrigger>
             <TabsTrigger value="filtering">Advanced Filtering</TabsTrigger>
             <TabsTrigger value="whitelist">Whitelist</TabsTrigger>
+            <TabsTrigger value="auth">Authentication</TabsTrigger>
             <TabsTrigger value="logs">Real-time Logs</TabsTrigger>
             <TabsTrigger value="scenarios">Security Scenarios</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -173,6 +187,15 @@ const Index = () => {
             <WhitelistManager />
           </TabsContent>
 
+          <TabsContent value="auth" className="space-y-4">
+            <div className="flex justify-center">
+              <WindowsServerAuth 
+                onAuthenticationSuccess={handleWindowsServerAuthSuccess}
+                onAuthenticationFailure={handleWindowsServerAuthFailure}
+              />
+            </div>
+          </TabsContent>
+
           <TabsContent value="logs" className="space-y-4">
             <Card>
               <CardHeader>
@@ -180,6 +203,13 @@ const Index = () => {
                 <CardDescription>
                   Real-time monitoring of data loss prevention events and security incidents
                 </CardDescription>
+                {isWindowsServerConfigured() && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge variant={windowsServerAuthenticated ? "default" : "secondary"}>
+                      {windowsServerAuthenticated ? "Windows Server Connected" : "Windows Server Disconnected"}
+                    </Badge>
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
                 <DLPLogStream isStreaming={isStreaming} />

@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Enums for better type safety and validation
+enum UserRole {
+  ADMIN
+  SECURITY_OFFICER
+  AUDITOR
+  USER
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DataClass {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum AuditAction {
+  ADD
+  REMOVE
+  UPDATE
+  DEACTIVATE
+  ACCESS
+  VERIFY
+}
+
+// Trend Micro Apex One Integration
+model ApexOneLog {
+  id            Int                @id @default(autoincrement())
+  timestamp     DateTime           @default(now())
+  eventType     String // DETECTION, BLOCK, ALLOW, etc.
+  severity      String // HIGH, MEDIUM, LOW
+  sourceIP      String
+  destinationIP String?
+  domainName    String? // Changed from domain to domainName
+  filePath      String?
+  fileName      String?
+  fileHash      String?
+  action        String // BLOCKED, ALLOWED, QUARANTINED
+  details       String?
+  status        String // RESOLVED, PENDING, INVESTIGATING
+  assignedTo    String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  // Relations
+  domainId      Int?
+  domain        WhitelistedDomain? @relation(fields: [domainId], references: [id])
+  userId        Int?
+  user          User?              @relation(fields: [userId], references: [id])
+}
+
+model WhitelistedDomain {
+  id            Int               @id @default(autoincrement())
+  domain        String            @unique
+  category      String            @default("external") // internal, external, cloud
+  isWildcard    Boolean           @default(false)
+  notes         String?
+  addedBy       String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  expiresAt     DateTime?
+  isActive      Boolean           @default(true)
+  auditLogs     AuditLog[]
+  // New security fields
+  riskLevel     RiskLevel         @default(LOW)
+  dataClass     DataClass         @default(PUBLIC)
+  encryptionKey String? // For encrypted notes
+  lastVerified  DateTime?
+  verifiedBy    String?
+  accessLogs    AccessLog[]
+  compliance    Compliance[]
+  reputation    DomainReputation?
+  apexOneLogs   ApexOneLog[]
+}
+
+model AuditLog {
+  id          Int               @id @default(autoincrement())
+  action      AuditAction
+  domainName  String // The domain name at the time of the audit
+  performedBy String?
+  details     String?
+  createdAt   DateTime          @default(now())
+  domainId    Int
+  domain      WhitelistedDomain @relation(fields: [domainId], references: [id])
+  // New security fields
+  ipAddress   String?
+  userAgent   String?
+  sessionId   String?
+  riskLevel   RiskLevel?
+  userId      Int? // Added for User relation
+  user        User?             @relation(fields: [userId], references: [id]) // Added User relation
+}
+
+model DomainCategory {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  // New security fields
+  riskLevel   RiskLevel    @default(LOW)
+  dataClass   DataClass    @default(PUBLIC)
+  compliance  Compliance[]
+}
+
+// New models for advanced security
+model User {
+  id          Int          @id @default(autoincrement())
+  username    String       @unique
+  role        UserRole
+  mfaEnabled  Boolean      @default(false)
+  lastLogin   DateTime?
+  sessions    Session[]
+  auditLogs   AuditLog[]
+  accessLogs  AccessLog[]
+  apexOneLogs ApexOneLog[]
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  ipAddress String
+  userAgent String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+}
+
+model Compliance {
+  id           Int                 @id @default(autoincrement())
+  name         String              @unique
+  description  String?
+  requirements String // Changed from String[] to String
+  domains      WhitelistedDomain[]
+  categories   DomainCategory[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model AccessLog {
+  id        Int               @id @default(autoincrement())
+  domainId  Int
+  domain    WhitelistedDomain @relation(fields: [domainId], references: [id])
+  userId    Int
+  user      User              @relation(fields: [userId], references: [id])
+  ipAddress String
+  userAgent String
+  timestamp DateTime          @default(now())
+  action    String
+  status    String
+  details   String?
+}
+
+model DomainReputation {
+  id          Int               @id @default(autoincrement())
+  domainId    Int               @unique
+  domain      WhitelistedDomain @relation(fields: [domainId], references: [id])
+  score       Int               @default(0)
+  lastChecked DateTime          @default(now())
+  threats     String // Changed from String[] to String
+  updatedAt   DateTime          @updatedAt
+}

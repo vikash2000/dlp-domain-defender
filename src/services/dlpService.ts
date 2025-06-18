@@ -1,3 +1,20 @@
+import axios from 'axios';
+import WindowsServerService from './windowsServerService';
+import { isWindowsServerConfigured } from '@/config/windowsServer';
+
+// Server configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true' || !import.meta.env.VITE_API_BASE_URL;
+
+// Authentication configuration
+const API_USERNAME = import.meta.env.VITE_API_USERNAME || '';
+const API_PASSWORD = import.meta.env.VITE_API_PASSWORD || '';
+const API_TOKEN = import.meta.env.VITE_API_TOKEN || '';
+const USE_API_AUTH = import.meta.env.VITE_USE_API_AUTH === 'true';
+
+// Windows Server Service
+const windowsServerService = isWindowsServerConfigured() ? new WindowsServerService() : null;
+
 export interface DLPLogEntry {
   id: string;
   timestamp: Date;
@@ -180,27 +197,64 @@ class DLPService {
   }
 
   async getDLPStats(): Promise<DLPStats> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    return {
-      activePolicies: 24 + Math.floor(Math.random() * 10),
-      blockedEvents: 156 + Math.floor(Math.random() * 50),
-      riskScore: Number((6.5 + Math.random() * 2).toFixed(1)),
-      logVolume: `${(2.1 + Math.random() * 0.8).toFixed(1)}K`,
-      criticalAlerts: Math.floor(Math.random() * 5)
-    };
+    if (USE_MOCK_DATA) {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      return {
+        activePolicies: 24 + Math.floor(Math.random() * 10),
+        blockedEvents: 156 + Math.floor(Math.random() * 50),
+        riskScore: Number((6.5 + Math.random() * 2).toFixed(1)),
+        logVolume: `${(2.1 + Math.random() * 0.8).toFixed(1)}K`,
+        criticalAlerts: Math.floor(Math.random() * 5)
+      };
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/dlp/stats`, {
+        headers: this.getAuthHeaders()
+      });
+      return response.data as DLPStats;
+    } catch (error) {
+      console.error('Failed to fetch DLP stats:', error);
+      // Return empty/zero stats instead of mock data
+      return {
+        activePolicies: 0,
+        blockedEvents: 0,
+        riskScore: 0,
+        logVolume: '0K',
+        criticalAlerts: 0
+      };
+    }
   }
 
   async getSecurityMetrics(): Promise<SecurityMetrics> {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    return {
-      totalIncidents: 342 + Math.floor(Math.random() * 100),
-      resolvedIncidents: 298 + Math.floor(Math.random() * 50),
-      activeThreats: 12 + Math.floor(Math.random() * 8),
-      complianceScore: 85 + Math.floor(Math.random() * 10)
-    };
+    if (USE_MOCK_DATA) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      return {
+        totalIncidents: 342 + Math.floor(Math.random() * 100),
+        resolvedIncidents: 298 + Math.floor(Math.random() * 50),
+        activeThreats: 12 + Math.floor(Math.random() * 8),
+        complianceScore: 85 + Math.floor(Math.random() * 10)
+      };
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/security/metrics`, {
+        headers: this.getAuthHeaders()
+      });
+      return response.data as SecurityMetrics;
+    } catch (error) {
+      console.error('Failed to fetch security metrics:', error);
+      // Return empty/zero metrics instead of mock data
+      return {
+        totalIncidents: 0,
+        resolvedIncidents: 0,
+        activeThreats: 0,
+        complianceScore: 0
+      };
+    }
   }
 
   private getRandomItem<T>(array: T[]): T {
@@ -277,6 +331,118 @@ class DLPService {
 
     const typeMessages = messages[type] || ['Sensitive data detected in transfer'];
     return this.getRandomItem(typeMessages);
+  }
+
+  async getRealTimeLogs(): Promise<DLPLogEntry[]> {
+    // Priority 1: Windows Server (if configured)
+    if (windowsServerService) {
+      try {
+        const logs = await windowsServerService.getRecentLogs(5); // Last 5 minutes
+        if (logs && logs.length > 0) {
+          return logs;
+        }
+      } catch (error) {
+        console.error('Windows Server real-time logs failed:', error);
+      }
+    }
+
+    // Priority 2: Mock data (if enabled)
+    if (USE_MOCK_DATA) {
+      return [];
+    }
+
+    // Priority 3: API server
+    try {
+      const response = await axios.get(`${API_BASE_URL}/dlp/logs/realtime`, {
+        headers: this.getAuthHeaders()
+      });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      console.error('API real-time logs failed:', error);
+      return [];
+    }
+  }
+
+  async getHistoricalLogs(limit: number = 100): Promise<DLPLogEntry[]> {
+    // Priority 1: Windows Server (if configured)
+    if (windowsServerService) {
+      try {
+        // Get logs from last 24 hours
+        const endDate = new Date().toISOString();
+        const startDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const logs = await windowsServerService.getLogsByDateRange(startDate, endDate);
+        if (logs && logs.length > 0) {
+          return logs.slice(0, limit);
+        }
+      } catch (error) {
+        console.error('Windows Server historical logs failed:', error);
+      }
+    }
+
+    // Priority 2: Mock data (if enabled)
+    if (USE_MOCK_DATA) {
+      return [];
+    }
+
+    // Priority 3: API server
+    try {
+      const response = await axios.get(`${API_BASE_URL}/dlp/logs/historical`, {
+        headers: this.getAuthHeaders(),
+        params: { limit }
+      });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      console.error('API historical logs failed:', error);
+      return [];
+    }
+  }
+
+  private getAuthHeaders() {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    if (USE_API_AUTH) {
+      if (API_TOKEN) {
+        // Use Bearer token authentication
+        headers['Authorization'] = `Bearer ${API_TOKEN}`;
+      } else if (API_USERNAME && API_PASSWORD) {
+        // Use Basic authentication
+        const credentials = btoa(`${API_USERNAME}:${API_PASSWORD}`);
+        headers['Authorization'] = `Basic ${credentials}`;
+      }
+    }
+
+    return headers;
+  }
+
+  /**
+   * Test Windows server connection
+   */
+  async testWindowsServerConnection(): Promise<boolean> {
+    if (!windowsServerService) {
+      console.log('Windows server not configured');
+      return false;
+    }
+
+    try {
+      const isConnected = await windowsServerService.testConnection();
+      console.log('Windows server connection test:', isConnected ? 'SUCCESS' : 'FAILED');
+      return isConnected;
+    } catch (error) {
+      console.error('Windows server connection test failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get Windows server status
+   */
+  getWindowsServerStatus() {
+    return {
+      configured: !!windowsServerService,
+      service: windowsServerService ? 'Available' : 'Not configured'
+    };
   }
 }
 

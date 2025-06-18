@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Filter, AlertTriangle, Shield } from "lucide-react";
+import { whitelistService } from "@/services/whitelistService";
 
 interface FilteringProps {
   onFilterChange: (filters: FilterConfig) => void;
@@ -21,22 +21,6 @@ export interface FilterConfig {
   showSuspiciousOnly: boolean;
 }
 
-const ALLOWED_DOMAINS = [
-  "pdfescape.com", "smallpdf.com", "ilovepdf.com", "pdf2go.com",
-  "1drv.ms", "onedrive.live.com", "onedrive.com", "pricol.freshservice.com",
-  "bajajauto.co.in", "abdrive.bajajauto.com", "myapp.pricol.co.in",
-  "tradewithtvs.com", "dfos.azurewebsites.net", "www.falstad.com",
-  "freepdfconvert.com", "pricol.co.in", "pricol.com", "webpp.heromotocorp.biz",
-  "pricollimited.atlassian.net", "unifiedportal-mem.epfindia.gov.in", "adobe.com",
-  "eportal.incometax.gov.in", "gemini.google.com", "srm.inservices.tatamotors.com",
-  "bulletlogistics.in", "twinengineers.com", "tvscorp.tvsmotor.com",
-  "srm.ashokleyland.com", "dgft.gov.in", "v2.zenclass.in", "smlisuzu.net",
-  "chatgpt.com", "pricolprecision.com", "pricolasia.com", "mca.gov.in",
-  "pricoltravel.com", "stimulate.icsi.edu", "airtel.com", "www.sejda.com",
-  "srmapps.mahindra.com", "cibnext.icicibank.com", "www.freeconvert.com",
-  "publish.buffer.com", "tvsholdings.com", "sacl.co.in", "service.ariba.com"
-];
-
 export const AdvancedFiltering = ({ onFilterChange }: FilteringProps) => {
   const [filters, setFilters] = useState<FilterConfig>({
     searchText: "",
@@ -46,6 +30,25 @@ export const AdvancedFiltering = ({ onFilterChange }: FilteringProps) => {
     excludeCloudStorage: true,
     showSuspiciousOnly: false
   });
+
+  const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAllowedDomains = async () => {
+      try {
+        const domains = await whitelistService.getWhitelist();
+        setAllowedDomains(domains);
+      } catch (error) {
+        console.error('Error loading allowed domains:', error);
+        setAllowedDomains([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAllowedDomains();
+  }, []);
 
   const updateFilter = (key: keyof FilterConfig, value: any) => {
     const newFilters = { ...filters, [key]: value };
@@ -134,15 +137,19 @@ export const AdvancedFiltering = ({ onFilterChange }: FilteringProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label>Allowed Domains ({ALLOWED_DOMAINS.length})</Label>
+          <Label>Allowed Domains ({loading ? 'Loading...' : allowedDomains.length})</Label>
           <div className="max-h-32 overflow-y-auto space-y-1">
-            <div className="grid grid-cols-2 gap-1">
-              {ALLOWED_DOMAINS.map((domain, index) => (
-                <Badge key={index} variant="outline" className="text-xs">
-                  {domain}
-                </Badge>
-              ))}
-            </div>
+            {loading ? (
+              <div className="text-sm text-muted-foreground">Loading domains...</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-1">
+                {allowedDomains.map((domain, index) => (
+                  <Badge key={index} variant="outline" className="text-xs">
+                    {domain}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield } from "lucide-react";
 import { dlpService, DLPLogEntry } from "@/services/dlpService";
+import { serverConfig } from "@/config/server";
 
 interface DLPLogStreamProps {
   isStreaming: boolean;
@@ -12,14 +12,34 @@ interface DLPLogStreamProps {
 
 export const DLPLogStream = ({ isStreaming }: DLPLogStreamProps) => {
   const [logs, setLogs] = useState<DLPLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isStreaming) return;
 
-    const interval = setInterval(() => {
-      const newLogs = dlpService.generateMockLogs(3);
-      setLogs(prev => [...newLogs, ...prev].slice(0, 100)); // Keep last 100 logs
-    }, 2000);
+    const fetchLogs = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        // Fetch real logs from server
+        const realTimeLogs = await dlpService.getRealTimeLogs();
+        setLogs(prev => [...realTimeLogs, ...prev].slice(0, 100));
+      } catch (err) {
+        console.error('Failed to fetch logs:', err);
+        setError('Failed to fetch logs from server');
+        // Don't add fallback logs - keep existing logs or show empty state
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Initial fetch
+    fetchLogs();
+
+    // Set up interval for real-time updates
+    const interval = setInterval(fetchLogs, serverConfig.intervals.realTimeLogs);
 
     return () => clearInterval(interval);
   }, [isStreaming]);
@@ -41,6 +61,24 @@ export const DLPLogStream = ({ isStreaming }: DLPLogStreamProps) => {
           <Shield className="h-4 w-4" />
           <AlertDescription>
             Log streaming is paused. Click "Start Monitoring" to begin real-time analysis.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert variant="destructive">
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            {error} - No logs available
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isLoading && (
+        <Alert>
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            Fetching latest logs from server...
           </AlertDescription>
         </Alert>
       )}

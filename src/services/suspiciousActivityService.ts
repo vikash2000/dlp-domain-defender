@@ -1,3 +1,4 @@
+import { whitelistService } from './whitelistService';
 
 export interface SuspiciousActivity {
   logId: string;
@@ -7,15 +8,7 @@ export interface SuspiciousActivity {
 }
 
 class SuspiciousActivityService {
-  private readonly allowedDomains = [
-    "pdfescape.com", "smallpdf.com", "ilovepdf.com", "pdf2go.com",
-    "1drv.ms", "onedrive.live.com", "onedrive.com", "pricol.freshservice.com",
-    "bajajauto.co.in", "abdrive.bajajauto.com", "myapp.pricol.co.in",
-    "tradewithtvs.com", "dfos.azurewebsites.net", "www.falstad.com",
-    "freepdfconvert.com", "pricol.co.in", "pricol.com"
-  ];
-
-  detectSuspiciousActivity(logEntry: any): SuspiciousActivity | null {
+  async detectSuspiciousActivity(logEntry: any): Promise<SuspiciousActivity | null> {
     const reasons: string[] = [];
     let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
 
@@ -26,7 +19,7 @@ class SuspiciousActivityService {
     }
 
     // Rule 2: Untrusted destination domain
-    if (this.isUntrustedDomain(logEntry.destination)) {
+    if (await this.isUntrustedDomain(logEntry.destination)) {
       reasons.push("Untrusted destination domain");
       riskLevel = riskLevel === 'medium' ? 'high' : 'medium';
     }
@@ -70,15 +63,14 @@ class SuspiciousActivityService {
     return recipients.length === 1 && pricolRecipients.length === 0;
   }
 
-  private isUntrustedDomain(destination: string): boolean {
+  private async isUntrustedDomain(destination: string): Promise<boolean> {
     if (!destination) return false;
     
     const domain = this.extractDomain(destination);
     if (!domain) return false;
     
-    return !this.allowedDomains.some(allowed => 
-      domain === allowed || domain.endsWith("." + allowed)
-    );
+    // Use the whitelist service to check if domain is trusted
+    return !(await whitelistService.isWhitelisted(domain));
   }
 
   private isLargeFileToExternal(logEntry: any): boolean {
